@@ -1,0 +1,17 @@
+name: DrivenPlugin
+version: '1.0.0'
+main: net.dvmn2.drivenPlugin.DrivenPlugin
+api-version: '1.21'
+author: DVMN2
+description: >
+  Физическая симуляция движения сущностей (например, подводных лодок):
+  масса, настраиваемая плотность среды, силы/скорости в локальных и
+  глобальных координатах, управление углом поворота через команды.
+
+# Команда /driven регистрируется через Brigadier Commands API (LifecycleEvents.COMMANDS),
+# поэтому отдельного раздела "commands:" не требуется.
+
+permissions:
+  driven.admin:
+    description: Доступ к команде /driven (управление driven-сущностями)
+    default: op
