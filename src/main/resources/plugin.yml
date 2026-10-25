@@ -1,17 +1,23 @@
 name: DrivenPlugin
-version: '1.0.0'
-main: net.dvmn2.drivenPlugin.DrivenPlugin
-api-version: '1.21'
-author: DVMN2
-description: >
-  Физическая симуляция движения сущностей (например, подводных лодок):
-  масса, настраиваемая плотность среды, силы/скорости в локальных и
-  глобальных координатах, управление углом поворота через команды.
+description: Physics for entities such as submarines - mass, medium density, local and global forces and velocities.
+version: '${version}'
 
-# Команда /driven регистрируется через Brigadier Commands API (LifecycleEvents.COMMANDS),
-# поэтому отдельного раздела "commands:" не требуется.
+main: net.dvmn2.drivenplugin.DrivenPlugin
+api-version: '1.21'
+load: POSTWORLD
+
+authors: [ DVMN2 ]
 
 permissions:
-  driven.admin:
-    description: Доступ к команде /driven (управление driven-сущностями)
+  driven.use:
+    description: Use /driven
     default: op
+  driven.reload:
+    description: Use /driven reload
+    default: op
+  driven.admin:
+    description: All administrative Driven permissions
+    default: op
+    children:
+      driven.use: true
+      driven.reload: true

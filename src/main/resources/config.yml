@@ -1,20 +1,27 @@
-# Настройки локализации сообщений.
-# ru   — всегда русский
-# en   — всегда английский
-# auto — по локали клиента (для игроков), английский для консоли/командных блоков
 settings:
-  language: "auto"
+  # Plugin message language: "ru", "en" or "auto".
+  # "auto" uses the player's client locale; the console always gets English.
+  language: auto
+
+  # How often changed entity state is written to the entity's persistent data, in seconds (5..3600, default 30).
+  # State is also written when the entity's chunk unloads and when the plugin is disabled.
+  save-interval-seconds: 30
 
 physics:
-  # Масса и плотность среды по умолчанию для новых driven-сущностей
-  # (можно переопределить индивидуально командой /driven <targets> set mass|density <value>).
+  # Mass given to newly created driven entities (0.0001..1000000000, default 1000.0).
+  # Can be overridden per entity with: /driven <targets> set mass <value>
   default-mass: 1000.0
+
+  # Medium density (linear drag coefficient) given to newly created driven entities
+  # (0.0..1000000000, default 1.0).
+  # Can be overridden per entity with: /driven <targets> set density <value>
   default-density: 1.0
 
-  # Раз в сколько тиков пересчитывать физику (1 = каждый тик, максимально плавно).
-  tick-period: 1
+  # How often the physics step runs, in ticks (1..20, default 1).
+  # Every run applies one full step, so larger values make entities move in larger, less frequent jumps.
+  tick-period-ticks: 1
 
-  # Множитель для команды "get" (velocity/speed), результат округляется до int,
-  # т.к. /execute store result требует целое число.
-  # Стандартный множитель даёт скорость в блоках в секунду
+  # Multiplier applied to velocity and speed results of "/driven <targets> get ..." (0.001..1000000, default 20.0).
+  # The result is rounded to an integer because /execute store result requires one.
+  # The default converts blocks per tick into blocks per second.
   get-scale: 20.0

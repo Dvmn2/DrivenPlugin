@@ -1,54 +1,54 @@
-package net.dvmn2.drivenPlugin;
+package net.dvmn2.drivenplugin;
 
-import io.papermc.paper.command.brigadier.Commands;
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
-import net.dvmn2.drivenPlugin.command.DrivenCommand;
+import net.dvmn2.drivenplugin.command.DrivenCommand;
+import net.dvmn2.drivenplugin.storage.DrivenDataStore;
 import org.bukkit.plugin.java.JavaPlugin;
 
-import java.util.List;
-
+/**
+ * Composition root of the Driven plugin: wires objects together and manages enabling and disabling.
+ */
 public final class DrivenPlugin extends JavaPlugin {
 
-    /**
-     * Тег, по которому плагин определяет "свои" сущности: /driven <selector> ...
-     * работает только с сущностями, у которых есть этот scoreboard-тег.
-     */
-    public static final String TAG = "driven";
-
-    private DrivenDataStore dataStore;
-    private int physicsTaskId = -1;
+    private volatile DrivenSettings settings;
+    private DrivenManager manager;
 
     @Override
     public void onEnable() {
         saveDefaultConfig();
-        Lang.setLanguage(getConfig().getString("settings.language", "auto"));
+        reloadSettings();
 
-        this.dataStore = new DrivenDataStore(this);
+        DrivenDataStore store = new DrivenDataStore(PluginKeys.create(this), getLogger());
+        manager = new DrivenManager(this, () -> settings, store);
+        manager.load();
 
-        this.getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS, event -> {
-            Commands commands = event.registrar();
-            commands.register(
-                    DrivenCommand.build(this),
-                    "Control physics of driven entities",
-                    List.of()
-            );
-        });
+        getServer().getPluginManager().registerEvents(new DrivenListener(manager), this);
 
-        int period = Math.max(1, getConfig().getInt("physics.tick-period", 1));
-        PhysicsEngine physicsEngine = new PhysicsEngine(this);
-        this.physicsTaskId = getServer().getScheduler().scheduleSyncRepeatingTask(this, physicsEngine, period, period);
+        DrivenCommand command = new DrivenCommand(this, manager, () -> settings);
+        getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS, event ->
+                event.registrar().register(command.build(), "Control physics of driven entities"));
 
-        getLogger().info("Driven enabled.");
+        manager.start();
+
+        getLogger().info("Enabled; tracking " + manager.getTrackedCount() + " driven entities.");
     }
 
     @Override
     public void onDisable() {
-        if (physicsTaskId != -1) {
-            getServer().getScheduler().cancelTask(physicsTaskId);
+        if (manager != null) {
+            manager.shutdown();
         }
     }
 
-    public DrivenDataStore getDataStore() {
-        return dataStore;
+    /** Re-reads config.yml and rebuilds everything derived from it. */
+    public void reloadAll() {
+        reloadConfig();
+        reloadSettings();
+        manager.onSettingsReloaded();
+    }
+
+    private void reloadSettings() {
+        settings = DrivenSettings.parse(getConfig(), getLogger());
+        Lang.setLanguage(settings.language());
     }
 }

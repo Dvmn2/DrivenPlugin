@@ -1,88 +1,111 @@
 # DrivenPlugin
 
-A plugin for Paper 1.21.x that simulates the movement of entities (submarines, etc.)
-through controlled forces/speeds in local and global coordinates.
+Paper plugin that simulates simple physics for marker entities (`Interaction`): mass, medium density, constant
+thrust and velocity in local and world coordinates. It is meant for vehicles such as submarines that are driven
+by command blocks and datapacks. No companion mod.
 
-## How it works
+## Requirements
+- Minecraft 1.21.11, Paper, Java 21
+- No other plugins or mods
 
-- A managed entity is an `Interaction` (invisible, without a model) with the scoreboard tag `driven'.
-  The plugin only works with such entities. The visual model (the hull of the submarine) needs to be
-  implement separately, for example, a resource pack/display entities synchronized
-with the position and rotation of this `Interaction` entity outside the plugin. The `Interaction` itself
-  movement and rotation are given outwards via `get`, teleport and its `Location'.
-- The entity does not have vanilla gravity and physics — the entire position calculation is completely in the hands of
-  the plugin: every tick, the speed and position are recalculated, then the entity is teleported. Collisions with blocks
-  **are not handled** (an entity can pass through them) — this can be added separately (for example, raycast before
-  teleport), was not included in the current TOR.
-- Physics (simplified, linear):
-- `F = F_global + (F_local rotated to world coordinates)`
-    - `F_drag = -density * velocity` (medium density as a coefficient of linear friction)
-- `a = (F + F_drag) / mass`
-    - `velocity += a`, `position += velocity` (each tick, dt = 1 tick)
-- Gravity is not applied — if it is necessary for the entity to sink/float itself, set a constant force: `set force
-  global 0 <F> 0'.
-- Local coordinates (for `force local`, `velocity local`, `get local_velocity_*`):
-  `x` = right, `y` = local "top" (tilts with pitch, roll=0 is not supported),
-  'z` = forward (the direction of the entity's gaze). That is why the ballast/engine pushes "up the nose" along the
-  local Y-axis, which gives an oblique movement with a non-zero pitch.
-- The state (mass, density, forces, speed) is stored in the `PersistentDataContainer`
-  in essence, it is experiencing a reboot of the chunk and a server restart.
-
-## Assembly
-
-```
-mvn package
+## Build and run
+```bash
+./gradlew build      # build/libs/DrivenPlugin-<version>.jar
+./gradlew runServer  # Paper 1.21.11 test server
 ```
 
-Ready jar: `target/driven-1.0.0.jar `. Copy it to the `plugins/` folder of the Paper server.
+The Gradle wrapper is not part of the repository snapshot; generate it once with `gradle wrapper`.
 
-> In the `pom.xml` specifies the version of the dependency `paper-api' — `1.21.11-R0.1-SNAPSHOT'.
-> If such a version is not yet in the PaperMC repository at the time of the build, replace
-> to the nearest available server version (`1.21.x-R0.1-SNAPSHOT`).
-
-## Rights
-
-- `driven.use` (by default— operator only) — access to the entire `/driven` command.
-
-## Teams
-
-Root: `/driven'. The target everywhere is the standard Brigadier entity selector
-(`@e[tag=driven]`, `@e[tag=driven,limit=1]`, a specific UUID via `@e[...]`, etc.);
-the command itself additionally filters out only entities with the `driven` tag.
-
-| Team                                                | Description                                                                      |
-|-----------------------------------------------------|----------------------------------------------------------------------------------|
-| `/driven create`                                    | Creates a new driven entity at the point of the performer (player/command block) |
-| `/driven <targets> remove`                          | Removes driven entities from the list of targets                                 |
-| `/driven <targets> stop`                            | Resets forces (local/global) and speed                                           |
-| `/driven <targets> set mass <value>`                | Sets mass                                                                        |
-| `/driven <targets> set density <value>`             | Sets the density of the medium (coefficient of friction)                         |
-| `/driven <targets> set rotation <yaw> <pitch>`      | Sets the rotation (pitch: -90..90)                                               |
-| `/driven <targets> set force local <x> <y> <z>`     | Constant thrust in local axes (engines)                                          |
-| `/driven <targets> set force global <x> <y> <z>`    | Constant thrust in global axes                                                   |
-| `/driven <targets> set velocity local <x> <y> <z>`  | Instantly sets the speed in local axes (ballast-jerk)                            |
-| `/driven <targets> set velocity global <x> <y> <z>` | Instantly sets the speed in world axes                                           |
-| `/driven <targets> get local_velocity_x\|y\|z`      | Local speed (see below for the scale)                                            |
-| `/driven <targets> get global_velocity_x\|y\|z`     | World speed                                                                      |
-| `/driven <targets> get speed`                       | The speed module                                                                 |
-| `/driven <targets> get mass` / `get density`        | Current mass/density                                                             |
-
-The 'get` commands require the selector to specify **exactly one** driven entity
-(otherwise it is unclear which number to return), and return an `int` result, readable through:
-
-```
-/execute store result storage movement:temp modifier int 1 run driven @e[tag=driven,limit=1] get local_velocity_x
+## Architecture
+```text
+net.dvmn2.drivenplugin
+├── DrivenPlugin.java       composition root
+├── Lang.java               localisation (RU / EN, MiniMessage)
+├── Permissions.java        permission constants
+├── PluginKeys.java         persistent data keys
+├── DrivenSettings.java     config snapshot
+├── DrivenManager.java      runtime state and physics
+├── DrivenListener.java     entity load / unload / remove events
+├── command/                DrivenCommand
+├── model/                  DrivenData
+├── storage/                DrivenDataStore
+└── util/                   LocalFrame, Numbers
 ```
 
-## config.yml
+| Class | Responsibility |
+|---|---|
+| `DrivenPlugin` | wiring, enable/disable order, `reloadAll()` |
+| `DrivenSettings` | validated, immutable snapshot of `config.yml`; invalid values log a warning and use the default |
+| `DrivenManager` | owns the state of all loaded driven entities, runs the physics step and the periodic save |
+| `DrivenListener` | adopts entities on load, writes and forgets them on unload and removal |
+| `DrivenCommand` | the `/driven` Brigadier tree |
+| `DrivenData` | mutable physical state of one entity (mass, density, local force, global force, velocity) |
+| `DrivenDataStore` | reads and writes `DrivenData` from and to the entity's `PersistentDataContainer` |
+| `LocalFrame` | converts vectors between entity-local and world coordinates |
 
-```yaml
-settings:
-  language: "auto"   # ru | en | auto
+Threading: every class runs on the main server thread. There is no asynchronous code; state is stored in the
+entity's persistent data, which is Bukkit API and therefore main-thread only.
 
-physics:
-  default-mass: 1000.0
-  default-density: 1.0
-  tick-period: 1
-  get-scale: 20.0
+Lifecycle:
+
+- Enable: `saveDefaultConfig()` -> settings -> language -> store and manager -> `manager.load()` (adopts already
+  loaded entities) -> listener -> command -> `manager.start()` (physics and save tasks) -> one `info` line.
+- Disable: cancel tasks -> write all changed state synchronously -> clear.
+- Reload (`/driven reload`): re-reads the config, rebuilds the settings snapshot, updates the language and
+  reschedules the tasks. Entity state is kept.
+
+Physics step, run every `physics.tick-period-ticks`:
+
+```text
+F    = F_global + toWorld(F_local) - density * velocity
+v   += F / mass
+pos += v
 ```
+
+Gravity is not applied. One step is applied per run regardless of the period, so a larger period gives larger,
+less frequent jumps instead of scaling the step. Entities with zero forces and zero velocity are skipped.
+
+The local basis is `x = forward` (yaw and pitch), `y = up`, `z = right`, with roll fixed at zero. See `LocalFrame`.
+
+## Public API
+None.
+
+## Protocol
+None.
+
+## Data and files
+There are no data files. State lives in the persistent data of each driven entity (namespace `driven`):
+
+| Key | Type | Meaning |
+|---|---|---|
+| `driven` | byte | marker, `1` on every entity owned by the plugin |
+| `data_version` | int | layout version, currently `1` |
+| `mass`, `density` | double | physical parameters |
+| `force_local_x`, `force_local_y`, `force_local_z` | double | thrust in entity-local coordinates |
+| `force_global_x`, `force_global_y`, `force_global_z` | double | thrust in world coordinates |
+| `velocity_x`, `velocity_y`, `velocity_z` | double | velocity in world coordinates, blocks per physics step |
+
+A driven entity is an `Interaction` with the scoreboard tag `driven`. Missing values get defaults; non-finite or
+out-of-range values are replaced by defaults with a warning. Entities created before `data_version` existed use
+the same layout and need no migration.
+
+Persistence: the in-memory state is written back every `settings.save-interval-seconds`, when the entity's chunk
+unloads and on disable. After a crash, at most one save interval of velocity and force changes is lost; the
+entity position is kept by the normal chunk save.
+
+## Conventions and constraints
+- Driven entities are persistent by design, so the "remove orphaned entities on load" rule does not apply:
+  marked entities found on load are adopted into the manager instead of being deleted.
+- An `Interaction` that was tagged `driven` by hand (for example with `/tag`) is adopted the first time a
+  `/driven` command selects it.
+- The manager copies `Vector` values on the way in and out of `DrivenData`; mutate state only through its setters
+  and call `DrivenManager#markDirty` afterwards, otherwise the change is not saved.
+- `DrivenManager#stepAll` iterates over a snapshot of the tracked entities, because teleporting may load a chunk,
+  which adopts further entities while the step is running.
+- If a step produces a non-finite velocity, forces and velocity are reset and one warning is logged; teleporting
+  to a non-finite position would otherwise throw on every tick.
+- `/driven <targets> get` returns an integer so it can feed `/execute store result`; velocity results are
+  multiplied by `physics.get-scale`.
+
+## License
+All Rights Reserved.

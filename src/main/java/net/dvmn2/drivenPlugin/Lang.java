@@ -1,5 +1,8 @@
-package net.dvmn2.drivenPlugin;
+package net.dvmn2.drivenplugin;
 
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.minimessage.MiniMessage;
+import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
@@ -8,189 +11,195 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * Простая система локализации плагина: русский (ru) и английский (en).
+ * Localisation of all player-visible texts (Russian and English, Adventure MiniMessage).
  * <p>
- * Язык задаётся в config.yml (settings.language):
- * - "ru"   — всегда русский;
- * - "en"   — всегда английский;
- * - "auto" (по умолчанию) — язык определяется индивидуально для каждого
- * отправителя команды: для игрока берётся его игровая локаль
- * (Player#locale()), для консоли/командных блоков — английский.
+ * The language comes from {@code settings.language}: {@code ru} and {@code en} are fixed; {@code auto} uses the
+ * client locale of a player and English for the console and command blocks.
  * <p>
- * Simple RU/EN localization for the plugin.
- * Language is configured via config.yml (settings.language):
- * - "ru"   — always Russian;
- * - "en"   — always English;
- * - "auto" (default) — resolved per command sender: for a player, use their
- * client locale (Player#locale()); for console/command blocks,
- * fall back to English.
+ * Dynamic values MUST be passed as {@link TagResolver}s, never concatenated into a template. This is the only
+ * class of the plugin that holds static mutable state (the current language, {@code volatile}).
  */
 public final class Lang {
 
-    /**
-     * Ключи всех локализуемых сообщений плагина. / Keys for all localizable plugin messages.
-     */
+    /** All message keys. Every key has a Russian and an English text; completeness is checked on class load. */
     public enum Key {
-        NO_PERMISSION,
+        NO_WORLD_POSITION,
+        SELECTOR_FAILED,
         MUST_TARGET_ONE,
-        ONLY_PLAYER_OR_BLOCK,
+        RELOADED,
         CREATED,
         REMOVED,
-        MASS_SET,
-        DENSITY_SET,
-        ROTATION_SET,
-        YAW_SET,
-        PITCH_SET,
-        YAW_ADD,
-        PITCH_ADD,
-        FORCE_LOCAL_SET,
-        FORCE_GLOBAL_SET,
-        VELOCITY_LOCAL_SET,
-        VELOCITY_GLOBAL_SET,
-        FORCE_LOCAL_DIRECTION_SET,
-        FORCE_GLOBAL_DIRECTION_SET,
-        VELOCITY_LOCAL_DIRECTION_SET,
-        VELOCITY_GLOBAL_DIRECTION_SET,
-        MASS_ADD,
-        DENSITY_ADD,
-        ROTATION_ADD,
-        FORCE_LOCAL_ADD,
-        FORCE_GLOBAL_ADD,
-        VELOCITY_LOCAL_ADD,
-        VELOCITY_GLOBAL_ADD,
-        WRONG_ADD_MASS,
-        WRONG_ADD_DENSITY,
-        WRONG_ADD_PITCH,
         STOPPED,
-        VALUE_RESULT
+        VALUE_RESULT,
+        MASS_SET,
+        MASS_ADD,
+        DENSITY_SET,
+        DENSITY_ADD,
+        ROTATION_SET,
+        ROTATION_ADD,
+        YAW_SET,
+        YAW_ADD,
+        PITCH_SET,
+        PITCH_ADD,
+        VECTOR_SET,
+        VECTOR_ADD,
+        AXIS_SET,
+        AXIS_ADD,
+        WRONG_MASS,
+        WRONG_DENSITY,
+        WRONG_PITCH,
+        FRAME_LOCAL,
+        FRAME_GLOBAL,
+        QUANTITY_FORCE,
+        QUANTITY_VELOCITY
     }
 
+    private static final MiniMessage MM = MiniMessage.miniMessage();
     private static final Map<Key, String> RU = new EnumMap<>(Key.class);
     private static final Map<Key, String> EN = new EnumMap<>(Key.class);
 
+    private static volatile String language = "auto";
+
     static {
-        RU.put(Key.NO_PERMISSION, "§cУ вас нет прав на использование этой команды.");
-        RU.put(Key.MUST_TARGET_ONE, "§cЭта команда требует ровно одну driven-сущность в качестве цели (найдено: %d).");
-        RU.put(Key.ONLY_PLAYER_OR_BLOCK, "§cЭту команду может выполнить только тот, у кого есть положение в мире (игрок или командный блок).");
-        RU.put(Key.CREATED, "§aСоздана driven-сущность (UUID: %s).");
-        RU.put(Key.REMOVED, "§aУдалено driven-сущностей: %d.");
-        RU.put(Key.MASS_SET, "§aМасса установлена: %.3f (затронуто сущностей: %d).");
-        RU.put(Key.DENSITY_SET, "§aПлотность среды установлена: %.3f (затронуто сущностей: %d).");
-        RU.put(Key.ROTATION_SET, "§aПоворот установлен: yaw=%.2f, pitch=%.2f (затронуто сущностей: %d).");
-        RU.put(Key.YAW_SET, "§aКурс установлен: yaw=%.2f (затронуто сущностей: %d).");
-        RU.put(Key.PITCH_SET, "§aНаклон установлен: pitch=%.2f (затронуто сущностей: %d).");
-        RU.put(Key.YAW_ADD, "§aКурс увеличен: yaw=%.2f (затронуто сущностей: %d).");
-        RU.put(Key.PITCH_ADD, "§aНаклон увеличен: pitch=%.2f (затронуто сущностей: %d).");
-        RU.put(Key.FORCE_LOCAL_SET, "§aЛокальная сила установлена: (%.3f, %.3f, %.3f) (затронуто сущностей: %d).");
-        RU.put(Key.FORCE_GLOBAL_SET, "§aГлобальная сила установлена: (%.3f, %.3f, %.3f) (затронуто сущностей: %d).");
-        RU.put(Key.VELOCITY_LOCAL_SET, "§aЛокальная скорость установлена: (%.3f, %.3f, %.3f) (затронуто сущностей: %d).");
-        RU.put(Key.VELOCITY_GLOBAL_SET, "§aГлобальная скорость установлена: (%.3f, %.3f, %.3f) (затронуто сущностей: %d).");
-        RU.put(Key.FORCE_LOCAL_DIRECTION_SET, "§aЛокальная сила в направлении установлена: %.3f (затронуто сущностей: %d).");
-        RU.put(Key.FORCE_GLOBAL_DIRECTION_SET, "§aГлобальная сила в направлении установлена: %.3f (затронуто сущностей: %d).");
-        RU.put(Key.VELOCITY_LOCAL_DIRECTION_SET, "§aЛокальная скорость в направлении установлена: %.3f (затронуто сущностей: %d).");
-        RU.put(Key.VELOCITY_GLOBAL_DIRECTION_SET, "§aГлобальная скорость в направлении установлена: %.3f (затронуто сущностей: %d).");
-        RU.put(Key.MASS_ADD, "§aМасса добавлена: %.3f (затронуто сущностей: %d).");
-        RU.put(Key.DENSITY_ADD, "§aПлотность среды добавлена: %.3f (затронуто сущностей: %d).");
-        RU.put(Key.ROTATION_ADD, "§aПоворот добавлен: yaw=%.2f, pitch=%.2f (затронуто сущностей: %d).");
-        RU.put(Key.FORCE_LOCAL_ADD, "§aЛокальная сила добавлена: (%.3f, %.3f, %.3f) (затронуто сущностей: %d).");
-        RU.put(Key.FORCE_GLOBAL_ADD, "§aГлобальная сила добавлена: (%.3f, %.3f, %.3f) (затронуто сущностей: %d).");
-        RU.put(Key.VELOCITY_LOCAL_ADD, "§aЛокальная скорость добавлена: (%.3f, %.3f, %.3f) (затронуто сущностей: %d).");
-        RU.put(Key.VELOCITY_GLOBAL_ADD, "§aГлобальная скорость добавлена: (%.3f, %.3f, %.3f) (затронуто сущностей: %d).");
-        RU.put(Key.WRONG_ADD_MASS, "§c(UUID: %s) Неправильная масса: %.3f + %.3f = %.3f");
-        RU.put(Key.WRONG_ADD_DENSITY, "§c(UUID: %s) Неправильная плотность: %.3f + %.3f = %.3f");
-        RU.put(Key.WRONG_ADD_PITCH, "§c(UUID: %s) Неправильный pitch: %.3f + %.3f = %.3f");
-        RU.put(Key.STOPPED, "§aСила и скорость сброшены (затронуто сущностей: %d).");
-        RU.put(Key.VALUE_RESULT, "§7Значение: %d");
-
-        EN.put(Key.NO_PERMISSION, "§cYou don't have permission to use this command.");
-        EN.put(Key.MUST_TARGET_ONE, "§cThis command requires exactly one driven entity as a target (found: %d).");
-        EN.put(Key.ONLY_PLAYER_OR_BLOCK, "§cThis command can only be run by something with a world position (a player or a command block).");
-        EN.put(Key.CREATED, "§aCreated a driven entity (UUID: %s).");
-        EN.put(Key.REMOVED, "§aRemoved driven entities: %d.");
-        EN.put(Key.MASS_SET, "§aMass set to: %.3f (entities affected: %d).");
-        EN.put(Key.DENSITY_SET, "§aEnvironment density set to: %.3f (entities affected: %d).");
-        EN.put(Key.ROTATION_SET, "§aRotation set: yaw=%.2f, pitch=%.2f (entities affected: %d).");
-        RU.put(Key.YAW_SET, "§aYaw set: %.2f (entities affected: %d).");
-        RU.put(Key.PITCH_SET, "§aPitch set: %.2f (entities affected: %d).");
-        RU.put(Key.YAW_ADD, "§aYaw increased: %.2f (entities affected: %d).");
-        RU.put(Key.PITCH_ADD, "§aPitch increased: %.2f (entities affected: %d).");
-        EN.put(Key.FORCE_LOCAL_SET, "§aLocal force set to: (%.3f, %.3f, %.3f) (entities affected: %d).");
-        EN.put(Key.FORCE_GLOBAL_SET, "§aGlobal force set to: (%.3f, %.3f, %.3f) (entities affected: %d).");
-        EN.put(Key.VELOCITY_LOCAL_SET, "§aLocal velocity set to: (%.3f, %.3f, %.3f) (entities affected: %d).");
-        EN.put(Key.VELOCITY_GLOBAL_SET, "§aGlobal velocity set to: (%.3f, %.3f, %.3f) (entities affected: %d).");
-        EN.put(Key.FORCE_LOCAL_DIRECTION_SET, "§aLocal force in direction set to: %.3f (entities affected: %d).");
-        EN.put(Key.FORCE_GLOBAL_DIRECTION_SET, "§aGlobal force in direction set to: %.3f (entities affected: %d).");
-        EN.put(Key.VELOCITY_LOCAL_DIRECTION_SET, "§aLocal velocity in direction set to: %.3f (entities affected: %d).");
-        EN.put(Key.VELOCITY_GLOBAL_DIRECTION_SET, "§aGlobal velocity in direction set to: %.3f (entities affected: %d).");
-        EN.put(Key.MASS_ADD, "§aMass added: %.3f (entities affected: %d).");
-        EN.put(Key.DENSITY_ADD, "§aEnvironment density added: %.3f (entities affected: %d).");
-        EN.put(Key.ROTATION_ADD, "§aRotation added: yaw=%.2f, pitch=%.2f (entities affected: %d).");
-        EN.put(Key.FORCE_LOCAL_ADD, "§aLocal force added: (%.3f, %.3f, %.3f) (entities affected: %d).");
-        EN.put(Key.FORCE_GLOBAL_ADD, "§aGlobal force added: (%.3f, %.3f, %.3f) (entities affected: %d).");
-        EN.put(Key.VELOCITY_LOCAL_ADD, "§aLocal velocity added: (%.3f, %.3f, %.3f) (entities affected: %d).");
-        EN.put(Key.VELOCITY_GLOBAL_ADD, "§aGlobal velocity added: (%.3f, %.3f, %.3f) (entities affected: %d).");
-        EN.put(Key.WRONG_ADD_MASS, "§c(UUID: %s) Wrong mass: %.3f + %.3f = %.3f");
-        EN.put(Key.WRONG_ADD_DENSITY, "§c(UUID: %s) Wrong density: %.3f + %.3f = %.3f");
-        EN.put(Key.WRONG_ADD_PITCH, "§c(UUID: %s) Wrong pitch: %.3f + %.3f = %.3f");
-        EN.put(Key.STOPPED, "§aForce and velocity reset (entities affected: %d).");
-        EN.put(Key.VALUE_RESULT, "§7Value: %d");
+        put(Key.NO_WORLD_POSITION,
+                "<red>Эту команду может выполнить только тот, у кого есть положение в мире "
+                        + "(игрок или командный блок).",
+                "<red>This command can only be run by something with a world position "
+                        + "(a player or a command block).");
+        put(Key.SELECTOR_FAILED,
+                "<red>Не удалось разобрать селектор: <reason>",
+                "<red>Could not resolve the selector: <reason>");
+        put(Key.MUST_TARGET_ONE,
+                "<red>Эта команда требует ровно одну driven-сущность в качестве цели (найдено: <count>).",
+                "<red>This command requires exactly one driven entity as a target (found: <count>).");
+        put(Key.RELOADED,
+                "<green>Конфигурация перезагружена.",
+                "<green>Configuration reloaded.");
+        put(Key.CREATED,
+                "<green>Создана driven-сущность (UUID: <uuid>).",
+                "<green>Created a driven entity (UUID: <uuid>).");
+        put(Key.REMOVED,
+                "<green>Удалено driven-сущностей: <count>.",
+                "<green>Removed driven entities: <count>.");
+        put(Key.STOPPED,
+                "<green>Сила и скорость сброшены (затронуто сущностей: <count>).",
+                "<green>Force and velocity reset (entities affected: <count>).");
+        put(Key.VALUE_RESULT,
+                "<gray>Значение: <value>",
+                "<gray>Value: <value>");
+        put(Key.MASS_SET,
+                "<green>Масса установлена: <value> (затронуто сущностей: <count>).",
+                "<green>Mass set to: <value> (entities affected: <count>).");
+        put(Key.MASS_ADD,
+                "<green>Масса добавлена: <value> (затронуто сущностей: <count>).",
+                "<green>Mass added: <value> (entities affected: <count>).");
+        put(Key.DENSITY_SET,
+                "<green>Плотность среды установлена: <value> (затронуто сущностей: <count>).",
+                "<green>Environment density set to: <value> (entities affected: <count>).");
+        put(Key.DENSITY_ADD,
+                "<green>Плотность среды добавлена: <value> (затронуто сущностей: <count>).",
+                "<green>Environment density added: <value> (entities affected: <count>).");
+        put(Key.ROTATION_SET,
+                "<green>Поворот установлен: yaw=<yaw>, pitch=<pitch> (затронуто сущностей: <count>).",
+                "<green>Rotation set: yaw=<yaw>, pitch=<pitch> (entities affected: <count>).");
+        put(Key.ROTATION_ADD,
+                "<green>Поворот добавлен: yaw=<yaw>, pitch=<pitch> (затронуто сущностей: <count>).",
+                "<green>Rotation added: yaw=<yaw>, pitch=<pitch> (entities affected: <count>).");
+        put(Key.YAW_SET,
+                "<green>Курс установлен: yaw=<value> (затронуто сущностей: <count>).",
+                "<green>Yaw set: <value> (entities affected: <count>).");
+        put(Key.YAW_ADD,
+                "<green>Курс увеличен: yaw=<value> (затронуто сущностей: <count>).",
+                "<green>Yaw increased: <value> (entities affected: <count>).");
+        put(Key.PITCH_SET,
+                "<green>Наклон установлен: pitch=<value> (затронуто сущностей: <count>).",
+                "<green>Pitch set: <value> (entities affected: <count>).");
+        put(Key.PITCH_ADD,
+                "<green>Наклон увеличен: pitch=<value> (затронуто сущностей: <count>).",
+                "<green>Pitch increased: <value> (entities affected: <count>).");
+        put(Key.VECTOR_SET,
+                "<green><frame> <quantity> установлена: (<x>, <y>, <z>) (затронуто сущностей: <count>).",
+                "<green><frame> <quantity> set to: (<x>, <y>, <z>) (entities affected: <count>).");
+        put(Key.VECTOR_ADD,
+                "<green><frame> <quantity> добавлена: (<x>, <y>, <z>) (затронуто сущностей: <count>).",
+                "<green><frame> <quantity> added: (<x>, <y>, <z>) (entities affected: <count>).");
+        put(Key.AXIS_SET,
+                "<green><frame> <quantity> по оси <axis> установлена: <value> (затронуто сущностей: <count>).",
+                "<green><frame> <quantity> on axis <axis> set to: <value> (entities affected: <count>).");
+        put(Key.AXIS_ADD,
+                "<green><frame> <quantity> по оси <axis> добавлена: <value> (затронуто сущностей: <count>).",
+                "<green><frame> <quantity> on axis <axis> added: <value> (entities affected: <count>).");
+        put(Key.WRONG_MASS,
+                "<red>(UUID: <uuid>) Неправильная масса: <old> + <delta> = <result>",
+                "<red>(UUID: <uuid>) Wrong mass: <old> + <delta> = <result>");
+        put(Key.WRONG_DENSITY,
+                "<red>(UUID: <uuid>) Неправильная плотность: <old> + <delta> = <result>",
+                "<red>(UUID: <uuid>) Wrong density: <old> + <delta> = <result>");
+        put(Key.WRONG_PITCH,
+                "<red>(UUID: <uuid>) Неправильный pitch: <old> + <delta> = <result>",
+                "<red>(UUID: <uuid>) Wrong pitch: <old> + <delta> = <result>");
+        // The four fragments below are inserted into VECTOR_* and AXIS_* messages; both Russian nouns are feminine.
+        put(Key.FRAME_LOCAL, "Локальная", "Local");
+        put(Key.FRAME_GLOBAL, "Глобальная", "Global");
+        put(Key.QUANTITY_FORCE, "сила", "force");
+        put(Key.QUANTITY_VELOCITY, "скорость", "velocity");
+        verify();
     }
-
-    /**
-     * "ru", "en" или "auto" — значение из config.yml. / "ru", "en" or "auto" from config.yml.
-     */
-    private static volatile String configuredLanguage = "auto";
 
     private Lang() {
     }
 
     /**
-     * Устанавливает язык плагина из конфига.
-     * Setting the plugin language from the config.
+     * Sets the configured language.
+     *
+     * @param value {@code ru}, {@code en} or {@code auto}; anything else behaves like {@code auto}
      */
-    public static void setLanguage(String language) {
-        if (language == null || language.isBlank()) {
-            configuredLanguage = "auto";
-            return;
+    public static void setLanguage(String value) {
+        language = value == null || value.isBlank() ? "auto" : value.toLowerCase(Locale.ROOT);
+    }
+
+    /**
+     * Renders a message for a recipient.
+     *
+     * @param key       message key
+     * @param sender    recipient, selects the language in {@code auto} mode
+     * @param resolvers placeholder values
+     * @return rendered component
+     */
+    public static Component get(Key key, CommandSender sender, TagResolver... resolvers) {
+        return MM.deserialize(table(sender).get(key), resolvers);
+    }
+
+    /**
+     * Returns the untouched template of a key, for short fragments that are passed as placeholder values.
+     *
+     * @param key    message key
+     * @param sender recipient, selects the language in {@code auto} mode
+     * @return template text
+     */
+    public static String raw(Key key, CommandSender sender) {
+        return table(sender).get(key);
+    }
+
+    private static void put(Key key, String ru, String en) {
+        RU.put(key, ru);
+        EN.put(key, en);
+    }
+
+    private static void verify() {
+        for (Key key : Key.values()) {
+            if (!RU.containsKey(key) || !EN.containsKey(key)) {
+                throw new IllegalStateException("Missing translation for " + key);
+            }
         }
-        configuredLanguage = language.toLowerCase(Locale.ROOT);
     }
 
-    /**
-     * Возвращает локализованный шаблон сообщения для конкретного отправителя команды.
-     * Returns the localized message template for a specific command sender.
-     */
-    public static String get(Key key, CommandSender sender) {
-        Map<Key, String> table = resolveTable(sender);
-        return table.getOrDefault(key, RU.get(key));
-    }
-
-    /**
-     * Возвращает локализованное и отформатированное сообщение (String.format) для отправителя.
-     * Returns the localized, formatted (String.format) message for a sender.
-     */
-    public static String get(Key key, CommandSender sender, Object... args) {
-        String template = get(key, sender);
-        return String.format(Locale.ROOT, template, args);
-    }
-
-    private static Map<Key, String> resolveTable(CommandSender sender) {
-        return switch (configuredLanguage) {
-            case "en" -> EN;
+    private static Map<Key, String> table(CommandSender sender) {
+        return switch (language) {
             case "ru" -> RU;
-            default -> autoResolve(sender); // "auto" или некорректное значение
+            case "en" -> EN;
+            default -> sender instanceof Player player
+                    && "ru".equalsIgnoreCase(player.locale().getLanguage()) ? RU : EN;
         };
-    }
-
-    private static Map<Key, String> autoResolve(CommandSender sender) {
-        if (sender instanceof Player player) {
-            // Player#locale() отдаёт java.util.Locale игрока, выставленную в настройках клиента.
-            // Player#locale() returns the client-configured java.util.Locale.
-            String langCode = player.locale().getLanguage();
-            return "ru".equalsIgnoreCase(langCode) ? RU : EN;
-        }
-        // Консоль/командные блоки — по умолчанию английский.
-        // Console/command blocks — default to English.
-        return EN;
     }
 }
